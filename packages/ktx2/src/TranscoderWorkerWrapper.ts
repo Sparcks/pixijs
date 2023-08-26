@@ -1,4 +1,4 @@
-import type { BASIS, BASIS_FORMATS, BasisBinding } from './Basis';
+import type { BASIS_FORMATS, BasisBinding } from '@pixi/basis';
 
 /**
  * Initialization message sent by the main thread.
@@ -60,14 +60,6 @@ export interface ITranscodeResponse
     }>;
 }
 
-declare global
-{
-    interface Window
-    {
-        BASIS: BASIS;
-    }
-}
-
 /**
  * This wraps the transcoder web-worker functionality; it can be converted into a string to get the source code. It expects
  * you to prepend the transcoder JavaScript code so that the `BASIS` namespace is available.
@@ -79,11 +71,12 @@ declare global
  */
 export function TranscoderWorkerWrapper(): void
 {
-    let basisBinding: BasisBinding;
+    let KTX2Binding: BasisBinding;
 
     const messageHandlers = {
         init: (message: IInitializeTranscoderMessage): ITranscodeResponse =>
         {
+            // Already created global in '@pixi/basis'.
             if (!self.BASIS)
             {
                 console.warn('jsSource was not prepended?');
@@ -97,7 +90,7 @@ export function TranscoderWorkerWrapper(): void
             self.BASIS({ wasmBinary: message.wasmSource }).then((basisLibrary) =>
             {
                 basisLibrary.initializeBasis();
-                basisBinding = basisLibrary;
+                KTX2Binding = basisLibrary;
 
                 (self as any).postMessage({
                     type: 'init',
@@ -110,12 +103,15 @@ export function TranscoderWorkerWrapper(): void
         transcode(message: ITranscodeMessage): ITranscodeResponse
         {
             const basisData = message.basisData;
-            const BASIS = basisBinding;
+            const BASIS = KTX2Binding;
 
             const data = basisData;
-            const basisFile = new BASIS.BasisFile(data);
-            const imageCount = basisFile.getNumImages();
-            const hasAlpha = basisFile.getHasAlpha();
+            const ktx2File = new BASIS.KTX2File(data);
+            const imageCount = ktx2File.getLevels() * Math.max(1, ktx2File.getLayers()) * ktx2File.getFaces();
+            let levels = ktx2File.getLevels();
+            const layers = ktx2File.getLayers();
+            const faces = ktx2File.getFaces();
+            const hasAlpha = ktx2File.getHasAlpha();
 
             const basisFormat = hasAlpha
                 ? message.rgbaFormat
@@ -125,10 +121,10 @@ export function TranscoderWorkerWrapper(): void
 
             let fallbackMode = false;
 
-            if (!basisFile.startTranscoding())
+            if (!ktx2File.startTranscoding())
             {
-                basisFile.close();
-                basisFile.delete();
+                ktx2File.close();
+                ktx2File.delete();
 
                 return {
                     type: 'transcode',
@@ -138,9 +134,8 @@ export function TranscoderWorkerWrapper(): void
                 };
             }
 
-            for (let i = 0; i < imageCount; i++)
+            for (let i = 0; i < levels; i++)
             {
-                const levels = basisFile.getNumLevels(i);
                 const imageResource: ITranscodedImage = {
                     imageID: i,
                     levelArray: new Array<{
@@ -153,57 +148,60 @@ export function TranscoderWorkerWrapper(): void
                     height: null
                 };
 
-                for (let j = 0; j < levels; j++)
+                for (let j = 0; j < Math.max(1, layers); j++)
                 {
-                    const format = !fallbackMode ? basisFormat : basisFallbackFormat;
-
-                    const width = basisFile.getImageWidth(i, j);
-                    const height = basisFile.getImageHeight(i, j);
-                    const byteSize = basisFile.getImageTranscodedSizeInBytes(i, j, format);
-
-                    // Level 0 is texture's actual width, height
-                    if (j === 0)
+                    for (let k = 0; k < faces; k++)
                     {
-                        const alignedWidth = (width + 3) & ~3;
-                        const alignedHeight = (height + 3) & ~3;
+                        const imageLevelInfo = ktx2File.getImageLevelInfo(i, j, k);
+                        const width = imageLevelInfo.width;
+                        const height = imageLevelInfo.height;
+                        const format = !fallbackMode ? basisFormat : basisFallbackFormat;
+                        const byteSize = ktx2File.getImageTranscodedSizeInBytes(i, j, k, format);
 
-                        imageResource.width = alignedWidth;
-                        imageResource.height = alignedHeight;
-                    }
-
-                    const imageBuffer = new Uint8Array(byteSize);
-
-                    if (!basisFile.transcodeImage(imageBuffer, i, j, format, false, false))
-                    {
-                        if (fallbackMode)
+                        // Level 0 is texture's actual width, height
+                        if (j === 0)
                         {
-                            // We failed in fallback mode as well!
-                            console.error(`Basis failed to transcode image ${i}, level ${j}!`);
+                            const alignedWidth = (width + 3) & ~3;
+                            const alignedHeight = (height + 3) & ~3;
 
-                            return { type: 'transcode', requestID: message.requestID, success: false };
+                            imageResource.width = alignedWidth;
+                            imageResource.height = alignedHeight;
                         }
 
-                        /* eslint-disable-next-line max-len */
-                        console.warn(`Basis failed to transcode image ${i}, level ${j}! Retrying to an uncompressed texture format!`);
-                        i = -1;
-                        fallbackMode = true;
+                        const imageBuffer = new Uint8Array(byteSize);
 
-                        break;
+                        if (!ktx2File.transcodeImage(imageBuffer, i, j, k, format, false, -1, -1))
+                        {
+                            if (fallbackMode)
+                            {
+                                // We failed in fallback mode as well!
+                                console.error(`Basis failed to transcode image ${i}, level ${j}!`);
+
+                                return { type: 'transcode', requestID: message.requestID, success: false };
+                            }
+
+                            /* eslint-disable-next-line max-len */
+                            console.warn(`Basis failed to transcode image ${i}, level ${j}! Retrying to an uncompressed texture format!`);
+                            i = -1;
+                            levels = 1;
+                            fallbackMode = true;
+
+                            break;
+                        }
+
+                        imageResource.levelArray.push({
+                            levelID: j,
+                            levelWidth: width,
+                            levelHeight: height,
+                            levelBuffer: imageBuffer
+                        });
                     }
-
-                    imageResource.levelArray.push({
-                        levelID: j,
-                        levelWidth: width,
-                        levelHeight: height,
-                        levelBuffer: imageBuffer
-                    });
                 }
-
                 imageArray[i] = imageResource;
             }
 
-            basisFile.close();
-            basisFile.delete();
+            ktx2File.close();
+            ktx2File.delete();
 
             return {
                 type: 'transcode',

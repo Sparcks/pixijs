@@ -1,22 +1,21 @@
-import { CompressedTextureResource } from '@pixi/compressed-textures';
-import { BufferResource, settings, TYPES } from '@pixi/core';
 import {
     BASIS_FORMAT_TO_INTERNAL_FORMAT,
-    BASIS_FORMATS,
-    BASIS_FORMATS_ALPHA,
-    INTERNAL_FORMAT_TO_BASIS_FORMAT,
-} from '../Basis';
+    BASIS_FORMATS, BASIS_FORMATS_ALPHA,
+    INTERNAL_FORMAT_TO_BASIS_FORMAT
+} from '@pixi/basis';
+import { CompressedTextureResource } from '@pixi/compressed-textures';
+import { BufferResource, settings, TYPES } from '@pixi/core';
 import { TranscoderWorker } from '../TranscoderWorker';
 
+import type {
+    BasisBinding,
+    BasisTextureExtensions,
+    TranscodedResourcesArray
+} from '@pixi/basis';
 import type { CompressedLevelBuffer, INTERNAL_FORMATS } from '@pixi/compressed-textures';
-import type { BasisBinding, BasisTextureExtensions } from '../Basis';
-
-export type TranscodedResourcesArray = (Array<CompressedTextureResource> | Array<BufferResource>) & {
-    basisFormat: BASIS_FORMATS
-};
 
 /**
- * Loader plugin for handling BASIS supercompressed texture files.
+ * Loader plugin for handling KTX2 supercompressed texture files.
  *
  * To use this loader, you must bind the basis_universal WebAssembly transcoder. There are two ways of
  * doing this:
@@ -25,23 +24,23 @@ export type TranscodedResourcesArray = (Array<CompressedTextureResource> | Array
  * the WASM binary from the same location.
  *
  * ```html
- * <!-- Copy ./node_modules/@pixi/basis/assets/basis_.wasm into your assets directory
+ * <!-- Copy ./node_modules/@pixi/basis/assets/basis_transcoder.wasm into your assets directory
  *     as well, so it is served from the same folder as the JavaScript! -->
  * <script src="./node_modules/@pixi/basis/assets/basis_transcoder.js"></script>
  * ```
  *
  * NOTE: `basis_transcoder.js` expects the WebAssembly binary to be named `basis_transcoder.wasm`.
- * NOTE-2: This method supports transcoding on the main-thread. Only use this if you have 1 or 2 *.basis
+ * NOTE-2: This method supports transcoding on the main-thread. Only use this if you have 1 or 2 *.ktx2
  * files.
  *
  * 2. Loading the transcoder source from a URL.
  *
  * ```js
- * // Use this if you to use the default CDN url for @pixi/basis
- * BasisParser.loadTranscoder();
+ * // Use this if you to use the default CDN url for @pixi/ktx2
+ * KTX2Parser.loadTranscoder();
  *
  * // Use this if you want to serve the transcoder on your own
- * BasisParser.loadTranscoder('./basis_transcoder.js', './basis_transcoder.wasm');
+ * KTX2Parser.loadTranscoder('./basis_transcoder.js', './basis_transcoder.wasm');
  * ```
  *
  * NOTE: This can only be used with web-workers.
@@ -49,9 +48,9 @@ export type TranscodedResourcesArray = (Array<CompressedTextureResource> | Array
  * @memberof PIXI
  * @implements {PIXI.ILoaderPlugin}
  */
-export class BasisParser
+export class KTX2Parser
 {
-    public static basisBinding: BasisBinding;
+    public static ktx2Binding: BasisBinding;
     private static defaultRGBFormat: { basisFormat: BASIS_FORMATS, textureFormat: INTERNAL_FORMATS | TYPES };
     private static defaultRGBAFormat: { basisFormat: BASIS_FORMATS, textureFormat: INTERNAL_FORMATS | TYPES };
     private static fallbackMode = false;
@@ -66,13 +65,13 @@ export class BasisParser
     {
         let resources: TranscodedResourcesArray;
 
-        if (typeof Worker !== 'undefined' && BasisParser.TranscoderWorker.wasmSource)
+        if (typeof Worker !== 'undefined' && KTX2Parser.TranscoderWorker.wasmSource)
         {
-            resources = await BasisParser.transcodeAsync(arrayBuffer);
+            resources = await KTX2Parser.transcodeAsync(arrayBuffer);
         }
         else
         {
-            resources = BasisParser.transcodeSync(arrayBuffer);
+            resources = KTX2Parser.transcodeSync(arrayBuffer);
         }
 
         return resources;
@@ -85,12 +84,12 @@ export class BasisParser
      */
     public static async transcodeAsync(arrayBuffer: ArrayBuffer): Promise<TranscodedResourcesArray>
     {
-        if (!BasisParser.defaultRGBAFormat && !BasisParser.defaultRGBFormat)
+        if (!KTX2Parser.defaultRGBAFormat && !KTX2Parser.defaultRGBFormat)
         {
-            BasisParser.autoDetectFormats();
+            KTX2Parser.autoDetectFormats();
         }
 
-        const workerPool = BasisParser.workerPool;
+        const workerPool = KTX2Parser.workerPool;
 
         let leastLoad = 0x10000000;
         let worker = null;
@@ -117,8 +116,8 @@ export class BasisParser
 
         const response = await worker.transcodeAsync(
             new Uint8Array(arrayBuffer),
-            BasisParser.defaultRGBAFormat.basisFormat,
-            BasisParser.defaultRGBFormat.basisFormat,
+            KTX2Parser.defaultRGBAFormat.basisFormat,
+            KTX2Parser.defaultRGBFormat.basisFormat,
         );
 
         const basisFormat = response.basisFormat;
@@ -168,86 +167,96 @@ export class BasisParser
      */
     public static transcodeSync(arrayBuffer: ArrayBuffer): TranscodedResourcesArray
     {
-        if (!BasisParser.defaultRGBAFormat && !BasisParser.defaultRGBFormat)
+        if (!KTX2Parser.defaultRGBAFormat && !KTX2Parser.defaultRGBFormat)
         {
-            BasisParser.autoDetectFormats();
+            KTX2Parser.autoDetectFormats();
         }
 
-        const BASIS = BasisParser.basisBinding;
-
+        const BASIS = KTX2Parser.ktx2Binding;
+        let fallbackMode = KTX2Parser.fallbackMode;
         const data = new Uint8Array(arrayBuffer);
-        const basisFile = new BASIS.BasisFile(data);
-        const imageCount = basisFile.getNumImages();
-        const hasAlpha = basisFile.getHasAlpha();
+        const ktx2File = new BASIS.KTX2File(data);
+
+        const dfdSize = ktx2File.getDFDSize();
+        const dvdData = new Uint8Array(dfdSize);
+
+        ktx2File.getDFD(dvdData);
+
+        // Don't transcode all mipmap levels in fallback mode!
+        const levels = !fallbackMode ? ktx2File.getLevels() : 1;
+        const layers = ktx2File.getLayers();
+        const faces = ktx2File.getFaces();
+        const hasAlpha = ktx2File.getHasAlpha();
+        const imageLevels = new Array<CompressedLevelBuffer>(levels);
 
         const basisFormat = hasAlpha
-            ? BasisParser.defaultRGBAFormat.basisFormat
-            : BasisParser.defaultRGBFormat.basisFormat;
+            ? KTX2Parser.defaultRGBAFormat.basisFormat
+            : KTX2Parser.defaultRGBFormat.basisFormat;
         const basisFallbackFormat = BASIS_FORMATS.cTFRGB565;
-        const imageResources = new Array<CompressedTextureResource | BufferResource>(imageCount);
+        const imageResources = new Array<CompressedTextureResource | BufferResource>(levels);
 
-        let fallbackMode = BasisParser.fallbackMode;
-
-        if (!basisFile.startTranscoding())
+        if (!ktx2File.startTranscoding())
         {
             // #if _DEBUG
             console.error(`Basis failed to start transcoding!`);
             // #endif
 
-            basisFile.close();
-            basisFile.delete();
+            ktx2File.close();
+            ktx2File.delete();
 
             return null;
         }
 
-        for (let i = 0; i < imageCount; i++)
+        // Transcode mipmap levels into "imageLevels"
+        for (let i = 0; i < levels; i++)
         {
-            // Don't transcode all mipmap levels in fallback mode!
-            const levels = !fallbackMode ? basisFile.getNumLevels(i) : 1;
-            const width = basisFile.getImageWidth(i, 0);
-            const height = basisFile.getImageHeight(i, 0);
+            const firstLevel = ktx2File.getImageLevelInfo(i, 0, 0);
+            const width = firstLevel.origWidth;
+            const height = firstLevel.origHeight;
             const alignedWidth = (width + 3) & ~3;
             const alignedHeight = (height + 3) & ~3;
 
-            const imageLevels = new Array<CompressedLevelBuffer>(levels);
-
-            // Transcode mipmap levels into "imageLevels"
-            for (let j = 0; j < levels; j++)
+            for (let j = 0; j < Math.max(1, layers); j++)
             {
-                const levelWidth = basisFile.getImageWidth(i, j);
-                const levelHeight = basisFile.getImageHeight(i, j);
-                const byteSize = basisFile.getImageTranscodedSizeInBytes(
-                    i, 0, !fallbackMode ? basisFormat : basisFallbackFormat);
-
-                imageLevels[j] = {
-                    levelID: j,
-                    levelBuffer: new Uint8Array(byteSize),
-                    levelWidth,
-                    levelHeight,
-                };
-
-                if (!basisFile.transcodeImage(
-                    imageLevels[j].levelBuffer, i, 0, !fallbackMode ? basisFormat : basisFallbackFormat, false, false))
+                for (let k = 0; k < faces; k++)
                 {
-                    if (fallbackMode)
-                    {
-                        // #if _DEBUG
-                        console.error(`Basis failed to transcode image ${i}, level ${0}!`);
-                        // #endif
-                        break;
-                    }
-                    else
-                    {
-                        // Try transcoding to an uncompressed format before giving up!
-                        // NOTE: We must start all over again as all Resources must be in compressed OR uncompressed.
-                        i = -1;
-                        fallbackMode = true;
+                    const imageLevelInfo = ktx2File.getImageLevelInfo(i, j, k);
+                    const levelWidth = imageLevelInfo.width;
+                    const levelHeight = imageLevelInfo.height;
+                    const byteSize = ktx2File.getImageTranscodedSizeInBytes(
+                        i, j, k, !fallbackMode ? basisFormat : basisFallbackFormat);
 
-                        // #if _DEBUG
-                        /* eslint-disable-next-line max-len */
-                        console.warn(`Basis failed to transcode image ${i}, level ${0} to a compressed texture format. Retrying to an uncompressed fallback format!`);
-                        // #endif
-                        continue;
+                    imageLevels[j] = {
+                        levelID: j,
+                        levelBuffer: new Uint8Array(byteSize),
+                        levelWidth,
+                        levelHeight,
+                    };
+
+                    if (!ktx2File.transcodeImage(
+                        // eslint-disable-next-line max-len
+                        imageLevels[j].levelBuffer, i, j, k, !fallbackMode ? basisFormat : basisFallbackFormat, false, -1, -1))
+                    {
+                        if (fallbackMode)
+                        {
+                            // #if _DEBUG
+                            console.error(`Basis failed to transcode image ${i}, level ${0}!`);
+                            // #endif
+                            break;
+                        }
+                        else
+                        {
+                            // Try transcoding to an uncompressed format before giving up!
+                            // NOTE: We must start all over again as all Resources must be in compressed OR uncompressed.
+                            i = -1;
+                            fallbackMode = true;
+
+                            // #if _DEBUG
+                            /* eslint-disable-next-line max-len */
+                            console.warn(`Basis failed to transcode image ${i}, level ${0} to a compressed texture format. Retrying to an uncompressed fallback format!`);
+                            // #endif
+                            continue;
+                        }
                     }
                 }
             }
@@ -274,8 +283,8 @@ export class BasisParser
             imageResources[i] = imageResource;
         }
 
-        basisFile.close();
-        basisFile.delete();
+        ktx2File.close();
+        ktx2File.delete();
 
         const transcodedResources = imageResources as TranscodedResourcesArray;
 
@@ -355,27 +364,27 @@ export class BasisParser
 
             if (internalFormat)
             {
-                BasisParser[detectWithAlpha ? 'defaultRGBAFormat' : 'defaultRGBFormat'] = {
+                KTX2Parser[detectWithAlpha ? 'defaultRGBAFormat' : 'defaultRGBFormat'] = {
                     textureFormat: internalFormat,
                     basisFormat,
                 };
             }
             else
             {
-                BasisParser[detectWithAlpha ? 'defaultRGBAFormat' : 'defaultRGBFormat'] = {
+                KTX2Parser[detectWithAlpha ? 'defaultRGBAFormat' : 'defaultRGBFormat'] = {
                     textureFormat: TYPES.UNSIGNED_SHORT_5_6_5,
                     basisFormat: BASIS_FORMATS.cTFRGB565,
                 };
 
-                BasisParser.fallbackMode = true;
+                KTX2Parser.fallbackMode = true;
             }
         }
     }
 
     /**
-     * Binds the basis_universal transcoder to decompress *.basis files. You must initialize the transcoder library yourself.
+     * Binds the basis_universal transcoder to decompress *.ktx2 files. You must initialize the transcoder library yourself.
      * @example
-     * import { BasisParser } from '@pixi/basis';
+     * import { KTX2Parser } from '@pixi/ktx2';
      *
      * // BASIS() returns a Promise-like object
      * globalThis.BASIS().then((basisLibrary) =>
@@ -383,26 +392,26 @@ export class BasisParser
      *     // Initialize basis-library; otherwise, transcoded results maybe corrupt!
      *     basisLibrary.initializeBasis();
      *
-     *     // Bind BasisParser to the transcoder
-     *     BasisParser.bindTranscoder(basisLibrary);
+     *     // Bind KTX2Parser to the transcoder
+     *     KTX2Parser.bindTranscoder(basisLibrary);
      * });
      * @param basisLibrary - the initialized transcoder library
      * @private
      */
     static bindTranscoder(basisLibrary: BasisBinding): void
     {
-        BasisParser.basisBinding = basisLibrary;
+        KTX2Parser.ktx2Binding = basisLibrary;
     }
 
     /**
-     * Loads the transcoder source code for use in {@link PIXI.BasisParser.TranscoderWorker}.
+     * Loads the transcoder source code for use in {@link PIXI.KTX2Parser.TranscoderWorker}.
      * @private
      * @param jsURL - URL to the javascript basis transcoder
      * @param wasmURL - URL to the wasm basis transcoder
      */
     static loadTranscoder(jsURL: string, wasmURL: string): Promise<[void, void]>
     {
-        return BasisParser.TranscoderWorker.loadTranscoder(jsURL, wasmURL);
+        return KTX2Parser.TranscoderWorker.loadTranscoder(jsURL, wasmURL);
     }
 
     /**
@@ -413,7 +422,7 @@ export class BasisParser
      */
     static setTranscoder(jsSource: string, wasmSource: ArrayBuffer): void
     {
-        BasisParser.TranscoderWorker.setTranscoder(jsSource, wasmSource);
+        KTX2Parser.TranscoderWorker.setTranscoder(jsSource, wasmSource);
     }
 
     static TranscoderWorker: typeof TranscoderWorker = TranscoderWorker;

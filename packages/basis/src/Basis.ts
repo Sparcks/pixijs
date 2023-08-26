@@ -1,6 +1,8 @@
 import { INTERNAL_FORMATS } from '@pixi/compressed-textures';
 import { TYPES } from '@pixi/core';
 
+import type { KTX2File } from '@pixi/ktx2';
+
 /**
  * The transcoding formats provided by basis_universal.
  *
@@ -26,6 +28,11 @@ export enum BASIS_FORMATS
     cTFRGB565 = 14,
     cTFBGR565 = 15,
     cTFRGBA4444 = 16,
+    // cTFFXT1_RGB = 17,
+    // cTFPVRTC2_4_RGB = 18,
+    // cTFPVRTC2_4_RGBA = 19,
+    // cTFETC2_EAC_R11 = 20,
+    // cTFETC2_EAC_RG11 = 21
 }
 /* eslint-enable camelcase, @typescript-eslint/indent */
 
@@ -84,6 +91,7 @@ export const BASIS_FORMATS_ALPHA: { [id: number]: boolean } = {
 /**
  * Binding to C++ {@code BasisFile} wrapper class.
  * @see https://github.com/BinomialLLC/basis_universal/blob/master/webgl/transcoder/basis_wrappers.cpp
+ * @see https://github.com/BinomialLLC/basis_universal/blob/master/webgl/texture/index.html
  * @private
  */
 export declare class BasisFile
@@ -129,6 +137,7 @@ export type BasisTextureExtensions = {
 /** API provided by basis_universal WebGL library. */
 export type BasisBinding = {
     BasisFile: typeof BasisFile,
+    KTX2File: typeof KTX2File,
     initializeBasis: () => void
 };
 
