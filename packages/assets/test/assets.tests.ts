@@ -440,6 +440,59 @@ describe('Assets', () =>
         expect(font).toBeInstanceOf(FontFace);
     });
 
+    it('should not show a cache warning if the same asset is loaded twice', async () =>
+    {
+        jest.setTimeout(10000);
+        await Assets.init({
+            basePath,
+        });
+
+        const spy = jest.spyOn(console, 'warn');
+
+        await Promise.all([
+            Assets.load('textures/bunny.png'),
+            Assets.load('textures/bunny.png'),
+            Assets.load({ src: 'textures/bunny.1.{png,webp}' }),
+            Assets.load({ src: 'textures/bunny.1.{png,webp}' }),
+            Assets.load({ src: ['textures/bunny.2.{png,webp}'] }),
+            Assets.load({ src: ['textures/bunny.2.{png,webp}'] }),
+            Assets.load({
+                src: [
+                    {
+                        src: 'textures/bunny.3.png',
+                    },
+                    {
+                        src: 'textures/bunny.3.webp',
+                    }
+                ]
+            }),
+            Assets.load({
+                src: [
+                    {
+                        src: 'textures/bunny.3.png',
+                    },
+                    {
+                        src: 'textures/bunny.3.webp',
+                    }
+                ]
+            }),
+            Assets.load({
+                src: {
+                    src: 'textures/bunny.4.png',
+                },
+            }),
+            Assets.load({
+                src: {
+                    src: 'textures/bunny.4.png',
+                },
+            }),
+        ]);
+
+        expect(spy).not.toHaveBeenCalled();
+
+        spy.mockRestore();
+    });
+
     it('should load font assets with space in URL', async () =>
     {
         await Assets.init({
@@ -451,22 +504,15 @@ describe('Assets', () =>
         expect(font).toBeInstanceOf(FontFace);
     });
 
-    it('should not show a cache warning if the same asset is loaded twice', async () =>
+    it('should load font assets with encoded URL', async () =>
     {
         await Assets.init({
             basePath,
         });
 
-        const spy = jest.spyOn(console, 'warn');
+        const font = await Assets.load('fonts/url%20with%20space.ttf');
 
-        const bunnyPromise = Assets.load('textures/bunny.png');
-        const bunnyPromise2 = Assets.load('textures/bunny.png');
-
-        await Promise.all([bunnyPromise, bunnyPromise2]);
-
-        expect(spy).not.toHaveBeenCalled();
-
-        spy.mockRestore();
+        expect(font).toBeInstanceOf(FontFace);
     });
 
     it('should append default url params when specified in the constructor', async () =>
@@ -498,7 +544,7 @@ describe('Assets', () =>
         expect(loadTextures.config.preferWorkers).toBe(true);
     });
 
-    it('should remove the asset from the cache when destroyed', async () =>
+    it('should remove the asset from the cache when the texture is destroyed', async () =>
     {
         await Assets.init({
             basePath,
@@ -509,7 +555,7 @@ describe('Assets', () =>
 
         expect(Assets.cache.has(url)).toBeTrue();
 
-        texture1.destroy(true);
+        texture1.destroy();
 
         expect(Assets.cache.has(url)).toBeFalse();
 
@@ -518,7 +564,32 @@ describe('Assets', () =>
         expect(Assets.cache.has(url)).toBeTrue();
         expect(texture2).not.toBe(texture1);
 
-        texture2.destroy(true);
+        texture2.destroy();
+
+        expect(Assets.cache.has(url)).toBeFalse();
+    });
+
+    it('should remove the asset from the cache when the base texture is destroyed', async () =>
+    {
+        await Assets.init({
+            basePath,
+        });
+
+        const url = 'textures/bunny.png';
+        const texture1 = await Assets.load(url);
+
+        expect(Assets.cache.has(url)).toBeTrue();
+
+        texture1.baseTexture.destroy();
+
+        expect(Assets.cache.has(url)).toBeFalse();
+
+        const texture2 = await Assets.load(url);
+
+        expect(Assets.cache.has(url)).toBeTrue();
+        expect(texture2).not.toBe(texture1);
+
+        texture2.baseTexture.destroy();
 
         expect(Assets.cache.has(url)).toBeFalse();
     });

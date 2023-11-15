@@ -284,6 +284,28 @@ export class Resolver
     }
 
     /**
+     * Returns the aliases for a given asset
+     * @param asset - the asset to get the aliases for
+     */
+    public getAlias(asset: UnresolvedAsset): string[]
+    {
+        const { alias, name, src, srcs } = asset;
+        const aliasesToUse = convertToList<ArrayOr<string | AssetSrc>>(
+            alias || name || src || srcs, (value: string | AssetSrc) =>
+            {
+                if (typeof value === 'string') return value;
+
+                if (Array.isArray(value)) return value.map((v) => (v as ResolvedSrc)?.src ?? (v as ResolvedSrc)?.srcs ?? v);
+
+                if (value?.src || value?.srcs) return value.src ?? value.srcs;
+
+                return value;
+            }, true) as string[];
+
+        return aliasesToUse;
+    }
+
+    /**
      * Add a manifest to the asset resolver. This is a nice way to add all the asset information in one go.
      * generally a manifest would be built using a tool.
      * @param manifest - the manifest to add to the resolver
@@ -401,6 +423,8 @@ export class Resolver
         this._bundles[bundleId] = assetNames;
     }
 
+    /** @deprecated */
+    public add(a: ArrayOr<string>, s?: AssetSrc, d?: unknown, f?: string, lp?: LoadParserName): void;
     /**
      * Tells the resolver what keys are associated with witch asset.
      * The most important thing the resolver does
@@ -426,13 +450,15 @@ export class Resolver
      * });
      *
      * resolver.resolve('bunnyBooBooSmooth') // => { src: 'bunny.png', data: { scaleMode: SCALE_MODES.NEAREST } }
-     * @param aliases - the key or keys that you will reference when loading this asset
-     * @param srcs - the asset or assets that will be chosen from when loading via the specified key
-     * @param data - asset-specific data that will be passed to the loaders
+     * @param data - the data to add to the resolver
+     * @param data.aliases - the key or keys that you will reference when loading this asset
+     * @param data.srcs - the asset or assets that will be chosen from when loading via the specified key
+     * @param data.data - asset-specific data that will be passed to the loaders
      * - Useful if you want to initiate loaded objects with specific data
-     * @param format - the format of the asset
-     * @param loadParser - the name of the load parser to use
+     * @param data.format - the format of the asset
+     * @param data.loadParser - the name of the load parser to use
      */
+    public add(data:(ArrayOr<UnresolvedAsset>)): void;
     public add(
         aliases: ArrayOr<string> | (ArrayOr<UnresolvedAsset>),
         srcs?: AssetSrc,
@@ -480,7 +506,7 @@ export class Resolver
         // loop through all the assets and generate a resolve asset for each src
         assetArray.forEach((asset) =>
         {
-            const { alias, name, src, srcs } = asset;
+            const { src, srcs } = asset;
             let { data, format, loadParser } = asset;
 
             // src can contain an unresolved asset itself
@@ -493,12 +519,13 @@ export class Resolver
 
                 return Array.isArray(src) ? src : [src];
             });
-            const aliasesToUse = convertToList<string>(alias || name);
+
+            const aliasesToUse = this.getAlias(asset);
 
             if (process.env.DEBUG)
             {
                 // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-                Array.isArray(alias) ? alias.forEach(keyCheck) : keyCheck(alias);
+                Array.isArray(aliasesToUse) ? aliasesToUse.forEach(keyCheck) : keyCheck(aliasesToUse);
             }
 
             // loop through all the srcs and generate a resolve asset for each src
@@ -536,6 +563,12 @@ export class Resolver
                         };
                     }
 
+                    // check if aliases is undefined
+                    if (!aliasesToUse)
+                    {
+                        throw new Error(`[Resolver] alias is undefined for this asset: ${formattedAsset.src}`);
+                    }
+
                     formattedAsset = this.buildResolvedAsset(formattedAsset, {
                         aliases: aliasesToUse,
                         data,
@@ -566,12 +599,12 @@ export class Resolver
      *             name: 'load-screen',
      *             assets: [
      *                 {
-     *                     name: 'background',
-     *                     srcs: 'sunset.png',
+     *                     alias: 'background',
+     *                     src: 'sunset.png',
      *                 },
      *                 {
-     *                     name: 'bar',
-     *                     srcs: 'load-bar.{png,webp}',
+     *                     alias: 'bar',
+     *                     src: 'load-bar.{png,webp}',
      *                 },
      *             ],
      *         },
@@ -579,12 +612,12 @@ export class Resolver
      *             name: 'game-screen',
      *             assets: [
      *                 {
-     *                     name: 'character',
-     *                     srcs: 'robot.png',
+     *                     alias: 'character',
+     *                     src: 'robot.png',
      *                 },
      *                 {
-     *                     name: 'enemy',
-     *                     srcs: 'bad-guy.png',
+     *                     alias: 'enemy',
+     *                     src: 'bad-guy.png',
      *                 },
      *             ],
      *         },
@@ -798,7 +831,7 @@ export class Resolver
         formattedAsset.src = this._appendDefaultSearchParams(formattedAsset.src);
         formattedAsset.data = { ...assetData || {}, ...formattedAsset.data };
         formattedAsset.loadParser = loadParser ?? formattedAsset.loadParser;
-        formattedAsset.format = format ?? formattedAsset.src.split('.').pop();
+        formattedAsset.format = format ?? utils.path.extname(formattedAsset.src).slice(1);
         formattedAsset.srcs = formattedAsset.src;
         formattedAsset.name = formattedAsset.alias;
 
