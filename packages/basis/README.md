@@ -1,6 +1,6 @@
 # @pixi/basis
 
-This package contains the parser for *.basis files, and it also ships with the transcoder.
+This package contains the parser for _.basis & _.ktx2 files, and it also ships with the transcoder.
 
 ## Installation
 
@@ -11,7 +11,7 @@ npm install @pixi/basis
 ## Usage
 
 ```js
-import '@pixi/basis';
+import "@pixi/basis";
 ```
 
 ## CDN Install

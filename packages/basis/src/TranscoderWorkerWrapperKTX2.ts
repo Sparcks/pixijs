@@ -69,7 +69,7 @@ export interface ITranscodeResponse
  * the web-worker will respond by sending another {@link ITranscodeResponse} message with `success: true`.
  * @ignore
  */
-export function TranscoderWorkerWrapper(): void
+export function TranscoderWorkerWrapperKTX2(): void
 {
     let KTX2Binding: BasisBinding;
 

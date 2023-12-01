@@ -1,6 +1,6 @@
+import { KTX2Parser, loadKTX2 } from '@pixi/basis';
 import { path } from '@pixi/utils';
 import { Loader } from '../../assets/src/loader/Loader';
-import { KTX2Parser, loadKTX2 } from '../src/loader';
 
 import type { Texture } from '@pixi/core';
 

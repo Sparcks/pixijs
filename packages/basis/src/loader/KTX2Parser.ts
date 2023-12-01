@@ -1,18 +1,19 @@
-import {
-    BASIS_FORMAT_TO_INTERNAL_FORMAT,
-    BASIS_FORMATS, BASIS_FORMATS_ALPHA,
-    INTERNAL_FORMAT_TO_BASIS_FORMAT
-} from '@pixi/basis';
 import { CompressedTextureResource } from '@pixi/compressed-textures';
 import { BufferResource, settings, TYPES } from '@pixi/core';
-import { TranscoderWorker } from '../TranscoderWorker';
+import {
+    BASIS_FORMAT_TO_INTERNAL_FORMAT,
+    BASIS_FORMATS,
+    BASIS_FORMATS_ALPHA,
+    INTERNAL_FORMAT_TO_BASIS_FORMAT,
+} from '../Basis';
+import { TranscoderWorkerKTX2 } from '../TranscoderWorkerKTX2';
 
+import type { CompressedLevelBuffer, INTERNAL_FORMATS } from '@pixi/compressed-textures';
 import type {
     BasisBinding,
     BasisTextureExtensions,
     TranscodedResourcesArray
-} from '@pixi/basis';
-import type { CompressedLevelBuffer, INTERNAL_FORMATS } from '@pixi/compressed-textures';
+} from '../Basis';
 
 /**
  * Loader plugin for handling KTX2 supercompressed texture files.
@@ -54,7 +55,7 @@ export class KTX2Parser
     private static defaultRGBFormat: { basisFormat: BASIS_FORMATS, textureFormat: INTERNAL_FORMATS | TYPES };
     private static defaultRGBAFormat: { basisFormat: BASIS_FORMATS, textureFormat: INTERNAL_FORMATS | TYPES };
     private static fallbackMode = false;
-    private static workerPool: TranscoderWorker[] = [];
+    private static workerPool: TranscoderWorkerKTX2[] = [];
 
     /**
      * Runs transcoding and populates {@link imageArray}. It will run the transcoding in a web worker
@@ -106,7 +107,7 @@ export class KTX2Parser
         if (!worker)
         {
             /* eslint-disable-next-line no-use-before-define */
-            worker = new TranscoderWorker();
+            worker = new TranscoderWorkerKTX2();
 
             workerPool.push(worker);
         }
@@ -425,7 +426,7 @@ export class KTX2Parser
         KTX2Parser.TranscoderWorker.setTranscoder(jsSource, wasmSource);
     }
 
-    static TranscoderWorker: typeof TranscoderWorker = TranscoderWorker;
+    static TranscoderWorker: typeof TranscoderWorkerKTX2 = TranscoderWorkerKTX2;
 
     static get TRANSCODER_WORKER_POOL_LIMIT(): number
     {
@@ -437,7 +438,7 @@ export class KTX2Parser
         // TODO: Destroy workers?
         for (let i = this.workerPool.length; i < limit; i++)
         {
-            this.workerPool[i] = new TranscoderWorker();
+            this.workerPool[i] = new TranscoderWorkerKTX2();
             this.workerPool[i].initAsync();
         }
     }

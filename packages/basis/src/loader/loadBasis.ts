@@ -2,7 +2,7 @@ import { checkExtension, createTexture, LoaderParserPriority } from '@pixi/asset
 import { CompressedTextureResource } from '@pixi/compressed-textures';
 import { ALPHA_MODES, BaseTexture, extensions, ExtensionType, FORMATS, MIPMAP_MODES, settings } from '@pixi/core';
 import { BASIS_FORMAT_TO_TYPE, BASIS_FORMATS } from '../Basis';
-import { TranscoderWorker } from '../TranscoderWorker';
+import { TranscoderWorkerBasis } from '../TranscoderWorkerBasis';
 import { BasisParser } from './BasisParser';
 
 import type { Loader, LoaderParser, ResolvedAsset } from '@pixi/assets';
@@ -24,7 +24,7 @@ export const loadBasis = {
 
     async load(url: string, asset: ResolvedAsset, loader: Loader): Promise<Texture | Texture[]>
     {
-        await TranscoderWorker.onTranscoderInitialized;
+        await TranscoderWorkerBasis.onTranscoderInitialized;
 
         // get an array buffer...
         const response = await settings.ADAPTER.fetch(url);

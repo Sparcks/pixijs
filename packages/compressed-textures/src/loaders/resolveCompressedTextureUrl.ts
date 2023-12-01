@@ -8,7 +8,7 @@ export const resolveCompressedTextureUrl = {
     {
         const extension = utils.path.extname(value).slice(1);
 
-        return ['basis', 'ktx', 'dds'].includes(extension);
+        return ['basis', 'ktx', 'dds', 'ktx2'].includes(extension);
     },
     parse: (value: string): UnresolvedAsset =>
     {

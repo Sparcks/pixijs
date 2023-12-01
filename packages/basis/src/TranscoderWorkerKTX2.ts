@@ -1,7 +1,7 @@
-import { TranscoderWorkerWrapper } from './TranscoderWorkerWrapper';
+import { TranscoderWorkerWrapperKTX2 } from './TranscoderWorkerWrapperKTX2';
 
 import type { BASIS_FORMATS } from '@pixi/basis';
-import type { ITranscodeResponse } from './TranscoderWorkerWrapper';
+import type { ITranscodeResponse } from './TranscoderWorkerWrapperKTX2';
 
 /**
  * Worker class for transcoding *.ktx2 files in background threads.
@@ -10,7 +10,7 @@ import type { ITranscodeResponse } from './TranscoderWorkerWrapper';
  * library.
  * @memberof PIXI.KTX2Parser
  */
-export class TranscoderWorker
+export class TranscoderWorkerKTX2
 {
     // IMPLEMENTATION NOTE: TranscoderWorker tracks transcoding requests with a requestID; the worker can be issued
     // multiple requests (once it is initialized) and the response contains the requestID of the triggering request. Based on
@@ -27,7 +27,7 @@ export class TranscoderWorker
     /** a promise that when reslved means the transcoder is ready to be used */
     public static onTranscoderInitialized = new Promise<void>((resolve) =>
     {
-        TranscoderWorker._onTranscoderInitializedResolve = resolve;
+        TranscoderWorkerKTX2._onTranscoderInitializedResolve = resolve;
     });
 
     isInit: boolean;
@@ -43,24 +43,24 @@ export class TranscoderWorker
     /** Generated URL for the transcoder worker script. */
     static get workerURL(): string
     {
-        if (!TranscoderWorker._workerURL)
+        if (!TranscoderWorkerKTX2._workerURL)
         {
-            let workerSource = TranscoderWorkerWrapper.toString();
+            let workerSource = TranscoderWorkerWrapperKTX2.toString();
 
             const beginIndex = workerSource.indexOf('{');
             const endIndex = workerSource.lastIndexOf('}');
 
             workerSource = workerSource.slice(beginIndex + 1, endIndex);
 
-            if (TranscoderWorker.jsSource)
+            if (TranscoderWorkerKTX2.jsSource)
             {
-                workerSource = `${TranscoderWorker.jsSource}\n${workerSource}`;
+                workerSource = `${TranscoderWorkerKTX2.jsSource}\n${workerSource}`;
             }
 
-            TranscoderWorker._workerURL = URL.createObjectURL(new Blob([workerSource]));
+            TranscoderWorkerKTX2._workerURL = URL.createObjectURL(new Blob([workerSource]));
         }
 
-        return TranscoderWorker._workerURL;
+        return TranscoderWorkerKTX2._workerURL;
     }
 
     protected worker: Worker;
@@ -73,17 +73,17 @@ export class TranscoderWorker
         this.load = 0;
         this.initPromise = new Promise((resolve) => { this.onInit = resolve; });
 
-        if (!TranscoderWorker.wasmSource)
+        if (!TranscoderWorkerKTX2.wasmSource)
         {
             console.warn('resources.BasisResource.TranscoderWorker has not been given the transcoder WASM binary!');
         }
 
-        this.worker = new Worker(TranscoderWorker.workerURL);
+        this.worker = new Worker(TranscoderWorkerKTX2.workerURL);
         this.worker.onmessage = this.onMessage;
         this.worker.postMessage({
             type: 'init',
-            jsSource: TranscoderWorker.jsSource,
-            wasmSource: TranscoderWorker.wasmSource
+            jsSource: TranscoderWorkerKTX2.jsSource,
+            wasmSource: TranscoderWorkerKTX2.wasmSource
         });
     }
 
@@ -108,7 +108,7 @@ export class TranscoderWorker
     {
         ++this.load;
 
-        const requestID = TranscoderWorker._tempID++;
+        const requestID = TranscoderWorkerKTX2._tempID++;
         const requestPromise = new Promise((resolve: (data: ITranscodeResponse) => void, reject: () => void) =>
         {
             this.requests[requestID] = {
@@ -175,10 +175,10 @@ export class TranscoderWorker
     {
         const jsPromise = fetch(jsURL)
             .then((res: Response) => res.text())
-            .then((text: string) => { TranscoderWorker.jsSource = text; });
+            .then((text: string) => { TranscoderWorkerKTX2.jsSource = text; });
         const wasmPromise = fetch(wasmURL)
             .then((res: Response) => res.arrayBuffer())
-            .then((arrayBuffer: ArrayBuffer) => { TranscoderWorker.wasmSource = arrayBuffer; });
+            .then((arrayBuffer: ArrayBuffer) => { TranscoderWorkerKTX2.wasmSource = arrayBuffer; });
 
         return Promise.all([jsPromise, wasmPromise]).then((data) =>
 
@@ -196,7 +196,7 @@ export class TranscoderWorker
      */
     static setTranscoder(jsSource: string, wasmSource: ArrayBuffer): void
     {
-        TranscoderWorker.jsSource = jsSource;
-        TranscoderWorker.wasmSource = wasmSource;
+        TranscoderWorkerKTX2.jsSource = jsSource;
+        TranscoderWorkerKTX2.wasmSource = wasmSource;
     }
 }

@@ -16,7 +16,7 @@ export enum LoaderParserPriority
     Low = 0,
     /** PixiJS assets with generic extensions: spritesheets, bitmapfonts  */
     Normal = 1,
-    /** Specific texture types: svg, png, ktx, dds, basis */
+    /** Specific texture types: svg, png, ktx, dds, basis, ktx2 */
     High = 2,
 }
 

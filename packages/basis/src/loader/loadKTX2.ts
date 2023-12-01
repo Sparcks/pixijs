@@ -1,8 +1,8 @@
 import { checkExtension, createTexture, LoaderParserPriority } from '@pixi/assets';
-import { BASIS_FORMAT_TO_TYPE, BASIS_FORMATS } from '@pixi/basis';
 import { CompressedTextureResource } from '@pixi/compressed-textures';
 import { ALPHA_MODES, BaseTexture, extensions, ExtensionType, FORMATS, MIPMAP_MODES, settings } from '@pixi/core';
-import { TranscoderWorker } from '../TranscoderWorker';
+import { BASIS_FORMAT_TO_TYPE, BASIS_FORMATS } from '../Basis';
+import { TranscoderWorkerKTX2 } from '../TranscoderWorkerKTX2';
 import { KTX2Parser } from './KTX2Parser';
 
 import type { Loader, LoaderParser, ResolvedAsset } from '@pixi/assets';
@@ -24,7 +24,7 @@ export const loadKTX2 = {
 
     async load(url: string, asset: ResolvedAsset, loader: Loader): Promise<Texture | Texture[]>
     {
-        await TranscoderWorker.onTranscoderInitialized;
+        await TranscoderWorkerKTX2.onTranscoderInitialized;
 
         // get an array buffer...
         const response = await settings.ADAPTER.fetch(url);

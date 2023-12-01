@@ -77,7 +77,7 @@ declare global
  * the web-worker will respond by sending another {@link ITranscodeResponse} message with `success: true`.
  * @ignore
  */
-export function TranscoderWorkerWrapper(): void
+export function TranscoderWorkerWrapperBasis(): void
 {
     let basisBinding: BasisBinding;
 

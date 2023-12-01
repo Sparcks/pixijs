@@ -45,9 +45,9 @@ export interface ICompressedTextureResourceOptions
  *  to the compression format supported on the device at _runtime_. It also supports transcoding into a uncompressed
  *  format as a fallback; you must install the `@pixi/basis-loader`, `@pixi/basis-transcoder` packages separately to
  *  use these files. See {@link PIXI.BasisParser}.
- * **.ktx2** - this BASIS supercompression, as a Khronos Texture Container file format, also stores texture data in an
- *  internal format that is transcoded to the compression format supported on the device at _runtime_. It also supports
- *  transcoding into a uncompressed format as a fallback; See {@link PIXI.KTX2Parser}.
+ * **.ktx2** - this BASIS supercompression, as a Khronos Texture Container (KTX2) file format, also stores texture data in an
+ *  internal format that is transcoded to the compression format supported on the device at _runtime_.
+ *  See {@link PIXI.KTX2Parser}.
  *
  * The loaders for the aforementioned formats use `CompressedTextureResource` internally. It is strongly suggested that
  * they be used instead.
@@ -62,7 +62,7 @@ export interface ICompressedTextureResourceOptions
  *
  * // The resource backing the texture data for your textures.
  * // NOTE: You can also provide a ArrayBufferView instead of a URL. This is used when loading data from a container file
- * //   format such as KTX, DDS, or BASIS.
+ * //   format such as KTX, DDS, BASIS or KTX2.
  * const compressedResource = new CompressedTextureResource('bunny.dxt5', {
  *     format: INTERNAL_FORMATS.COMPRESSED_RGBA_S3TC_DXT5_EXT,
  *     width: 256,

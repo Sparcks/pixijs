@@ -6,14 +6,14 @@ import {
     BASIS_FORMATS_ALPHA,
     INTERNAL_FORMAT_TO_BASIS_FORMAT,
 } from '../Basis';
-import { TranscoderWorker } from '../TranscoderWorker';
+import { TranscoderWorkerBasis } from '../TranscoderWorkerBasis';
 
 import type { CompressedLevelBuffer, INTERNAL_FORMATS } from '@pixi/compressed-textures';
-import type { BasisBinding, BasisTextureExtensions } from '../Basis';
-
-export type TranscodedResourcesArray = (Array<CompressedTextureResource> | Array<BufferResource>) & {
-    basisFormat: BASIS_FORMATS
-};
+import type {
+    BasisBinding,
+    BasisTextureExtensions,
+    TranscodedResourcesArray
+} from '../Basis';
 
 /**
  * Loader plugin for handling BASIS supercompressed texture files.
@@ -55,7 +55,7 @@ export class BasisParser
     private static defaultRGBFormat: { basisFormat: BASIS_FORMATS, textureFormat: INTERNAL_FORMATS | TYPES };
     private static defaultRGBAFormat: { basisFormat: BASIS_FORMATS, textureFormat: INTERNAL_FORMATS | TYPES };
     private static fallbackMode = false;
-    private static workerPool: TranscoderWorker[] = [];
+    private static workerPool: TranscoderWorkerBasis[] = [];
 
     /**
      * Runs transcoding and populates {@link imageArray}. It will run the transcoding in a web worker
@@ -107,7 +107,7 @@ export class BasisParser
         if (!worker)
         {
             /* eslint-disable-next-line no-use-before-define */
-            worker = new TranscoderWorker();
+            worker = new TranscoderWorkerBasis();
 
             workerPool.push(worker);
         }
@@ -416,7 +416,7 @@ export class BasisParser
         BasisParser.TranscoderWorker.setTranscoder(jsSource, wasmSource);
     }
 
-    static TranscoderWorker: typeof TranscoderWorker = TranscoderWorker;
+    static TranscoderWorker: typeof TranscoderWorkerBasis = TranscoderWorkerBasis;
 
     static get TRANSCODER_WORKER_POOL_LIMIT(): number
     {
@@ -428,7 +428,7 @@ export class BasisParser
         // TODO: Destroy workers?
         for (let i = this.workerPool.length; i < limit; i++)
         {
-            this.workerPool[i] = new TranscoderWorker();
+            this.workerPool[i] = new TranscoderWorkerBasis();
             this.workerPool[i].initAsync();
         }
     }

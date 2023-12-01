@@ -1,7 +1,9 @@
 import { INTERNAL_FORMATS } from '@pixi/compressed-textures';
 import { TYPES } from '@pixi/core';
 
-import type { KTX2File } from '@pixi/ktx2';
+import type { CompressedTextureResource } from '@pixi/compressed-textures';
+import type { BufferResource } from '@pixi/core';
+import type { KTX2File } from './KTX2';
 
 /**
  * The transcoding formats provided by basis_universal.
@@ -86,6 +88,10 @@ export const BASIS_FORMATS_ALPHA: { [id: number]: boolean } = {
     [BASIS_FORMATS.cTFBC3]: true,
     [BASIS_FORMATS.cTFPVRTC1_4_RGBA]: true,
     [BASIS_FORMATS.cTFASTC_4x4]: true,
+};
+
+export type TranscodedResourcesArray = (Array<CompressedTextureResource> | Array<BufferResource>) & {
+    basisFormat: BASIS_FORMATS
 };
 
 /**
